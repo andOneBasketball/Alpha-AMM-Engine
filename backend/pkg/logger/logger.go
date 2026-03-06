@@ -10,7 +10,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var Log *zap.Logger
+var Log *ZapLoggerAdapter
 
 func InitLogger(logPath string) {
 	consoleEncoder, fileEncoder := getEncoder()
@@ -37,7 +37,9 @@ func InitLogger(logPath string) {
 	// 构造 logger
 	options := []zap.Option{zap.AddCaller(), zap.Development()}
 	prefix, _ := gonanoid.New(4)
-	Log = zap.New(core, options...).With(zap.String("prefix", prefix))
+	Log = &ZapLoggerAdapter{
+		zap.New(core, options...).With(zap.String("prefix", prefix)),
+	}
 }
 
 func getEncoder() (zapcore.Encoder, zapcore.Encoder) {

@@ -12,15 +12,15 @@ import (
 
 func initWebRouter(r *gin.Engine) {
 	r.Use(
-		gin_zap.Ginzap(logger.Log, time.RFC3339, false),
-		gin_zap.RecoveryWithZap(logger.Log, true),
+		gin_zap.Ginzap(logger.Log.Logger, time.RFC3339, false),
+		gin_zap.RecoveryWithZap(logger.Log.Logger, true),
 	)
 
 	apiGroup := r.Group("api/v1")
 
 	// 支付相关接口
-	exampleGroup := apiGroup.Group("example")
+	ammGroup := apiGroup.Group("amm")
 	{
-		exampleGroup.POST("hello", v1.Hello)
+		ammGroup.GET("slippage_curve", v1.SlippageCurve)
 	}
 }

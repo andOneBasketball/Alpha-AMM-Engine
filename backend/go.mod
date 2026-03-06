@@ -5,7 +5,6 @@ go 1.25.0
 require (
 	github.com/andOneBasketball/baseapi-go v0.0.3
 	github.com/gin-gonic/gin v1.12.0
-	github.com/go-kratos/kratos/v2 v2.9.2
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/spf13/cobra v1.10.2
 	go.uber.org/zap v1.27.1
@@ -17,7 +16,12 @@ require (
 	gorm.io/plugin/dbresolver v1.6.2
 )
 
-require github.com/ethereum/go-ethereum v1.17.1
+require (
+	github.com/duke-git/lancet/v2 v2.3.8
+	github.com/ethereum/go-ethereum v1.17.1
+	github.com/go-echarts/go-echarts/v2 v2.7.0
+	github.com/shopspring/decimal v1.4.0
+)
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
@@ -78,6 +82,7 @@ require (
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
+	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect

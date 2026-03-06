@@ -4,31 +4,32 @@ import (
 	"alpha-amm-engine/pkg/logger"
 	"alpha-amm-engine/pkg/models"
 	"alpha-amm-engine/svc/service"
+	"net/http"
 
 	"github.com/andOneBasketball/baseapi-go/pkg/web/xlhttp"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
 
-// example
-func Hello(c *gin.Context) {
+// SlippageCurve 计算滑点曲线
+func SlippageCurve(c *gin.Context) {
 	var (
 		err error
 	)
 	r := xlhttp.Build(c)
 
-	var req models.HelloReq
+	var req models.SlippageCurveReq
 	err = r.RequestParser(&req)
 	if err != nil {
 		return
 	}
 	req.ClientIP = c.ClientIP()
 
-	resp, err := service.Hello(c, &req)
+	resp, err := service.SlippageCurve(c, &req)
 	if err != nil {
-		logger.Log.Error("Hello error", zap.Any("err", err))
+		logger.Log.Error("SlippageCurve error", zap.Any("err", err))
 		r.JsonReturn(err)
 		return
 	}
-	r.JsonReturn(err, resp)
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(resp.Data.(string)))
 }
