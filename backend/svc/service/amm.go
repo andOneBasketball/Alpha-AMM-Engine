@@ -11,15 +11,18 @@ import (
 	"alpha-amm-engine/internal/contracts"
 	"alpha-amm-engine/internal/dao"
 	"alpha-amm-engine/pkg/config"
+	"alpha-amm-engine/pkg/logger"
 	"alpha-amm-engine/pkg/models"
 	"alpha-amm-engine/svc/handler"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/components"
 	"github.com/go-echarts/go-echarts/v2/opts"
 	"github.com/shopspring/decimal"
+	"go.uber.org/zap"
 )
 
 type tokenMeta struct {
@@ -66,17 +69,46 @@ func SlippageCurve(ctx context.Context, req *models.SlippageCurveReq) (*models.C
 		return nil, fmt.Errorf("pair %s has no liquidity", pairAddr.Hex())
 	}
 
-	stepSize := req.SamplingSteps
-	if !stepSize.IsPositive() {
-		stepSize = decimal.NewFromInt(1)
+	stepSize0 := req.SamplingStep0
+	if !stepSize0.IsPositive() {
+		stepSize0 = decimal.NewFromInt(1)
+	}
+	stepSize1 := req.SamplingStep1
+	if !stepSize1.IsPositive() {
+		stepSize1 = decimal.NewFromInt(1)
 	}
 
 	// 以 decimals 调整后的人类可读储备量
 	r0D := decimal.NewFromBigInt(r0, -meta0.Decimals)
 	r1D := decimal.NewFromBigInt(r1, -meta1.Decimals)
 
-	chart0 := buildPriceChart(r0, r1, meta0.Decimals, meta1.Decimals, stepSize, meta0.Symbol, meta1.Symbol, "uniswap v2")
-	chart1 := buildPriceChart(r1, r0, meta1.Decimals, meta0.Decimals, stepSize, meta1.Symbol, meta0.Symbol, "uniswap v2")
+	chart0 := buildPriceChart(r0, r1, meta0.Decimals, meta1.Decimals, stepSize0, meta0.Symbol, meta1.Symbol, "uniswap v2")
+	chart1 := buildPriceChart(r1, r0, meta1.Decimals, meta0.Decimals, stepSize1, meta1.Symbol, meta0.Symbol, "uniswap v2")
+
+	// 如果提供了 V3 fee，通过 CREATE2 计算 pool 地址并叠加 V3 曲线到同一张图
+	var (
+		v3State     *v3PoolState
+		v3PoolAddr  common.Address
+		v3IsSwapped bool
+	)
+	if req.V3Fee > 0 {
+		v3PoolAddr, v3IsSwapped = handler.UniswapV3PoolFor(req.Token0Addr, req.Token1Addr, req.V3Fee)
+		v3Caller, err := contracts.NewIUniswapV3PoolCaller(v3PoolAddr, ethClient)
+		if err == nil {
+			// 一次性加载 slot0 / liquidity / tickSpacing / fee，两个方向共用
+			if v3State, err = loadV3PoolState(ctx, v3Caller); err == nil {
+				// v3IsSwapped=true 表示 pool.token0 = user.token1，即 chart0 方向为 oneForZero
+				v3ForwardIsZeroForOne := !v3IsSwapped
+				v3Sim, err := loadV3SwapSim(ctx, v3Caller, v3State)
+				if err != nil {
+					logger.Log.Errorf("loadV3SwapSim failed for pool %s: %v", v3PoolAddr.Hex(), err)
+				} else {
+					chart0.AddSeries("uniswap v3", buildV3YData(v3Sim, v3ForwardIsZeroForOne, stepSize0, meta0.Decimals, meta1.Decimals))
+					chart1.AddSeries("uniswap v3", buildV3YData(v3Sim, !v3ForwardIsZeroForOne, stepSize1, meta1.Decimals, meta0.Decimals))
+				}
+			}
+		}
+	}
 
 	page := components.NewPage()
 	page.AddCharts(chart0, chart1)
@@ -87,20 +119,41 @@ func SlippageCurve(ctx context.Context, req *models.SlippageCurveReq) (*models.C
 	}
 
 	// page.Render 生成完整 HTML 文档，将自定义 header 注入到 <body> 内
+
+	// V2 流动性 L = sqrt(r0 * r1)（人类可读单位）
+	v2Liquidity := handler.DecimalSqrt(r0D.Mul(r1D))
+
 	headerHTML := fmt.Sprintf(`<h3>Alpha AMM Engine</h3>
 <p>
 AMM liquidity analytics tool.
 <br>
 Analyzes swap price curves and slippage under different trade sizes.
 <br>
-uniswap v2 pool: %s reserve: %s, %s reserve: %s
+uniswap v2 pool: %s reserve: %s, %s reserve: %s, liquidity: %s`,
+		meta0.Symbol, r0D.String(), meta1.Symbol, r1D.String(), v2Liquidity.String())
+
+	if v3State != nil {
+		// price(token1/token0) = (sqrtPriceX96 / 2^96)^2
+		sqrtPriceD := decimal.NewFromBigInt(v3State.sqrtPriceX96, 0)
+		q96D := decimal.NewFromBigInt(q96, 0)
+		v3Price0 := sqrtPriceD.Div(q96D).Pow(decimal.NewFromInt(2))
+		v3Price1 := decimal.NewFromInt(1).Div(v3Price0)
+		headerHTML += fmt.Sprintf(`
+<br>
+uniswap v3 pool: price0 %s, price1 %s %s/%s, liquidity: %s`,
+			v3Price0.StringFixed(8), v3Price1.StringFixed(8), meta1.Symbol, meta0.Symbol, v3State.liquidity.String())
+	}
+
+	headerHTML += `
 </p>
 <hr>
-`, meta0.Symbol, r0D.String(), meta1.Symbol, r1D.String())
+`
 	htmlContent := strings.Replace(buf.String(), "<body>", "<body>"+headerHTML, 1)
 
 	f, _ := os.Create("amm_slippage_curve.html")
 	f.WriteString(htmlContent)
+
+	logger.Log.Info("calculate slippage curve success", zap.String("pair_v2", pairAddr.Hex()), zap.String("pair_v3", v3PoolAddr.Hex()), zap.String("token0", meta0.Symbol), zap.String("token1", meta1.Symbol))
 
 	return &models.CommonResp{
 		Data: htmlContent,
@@ -162,7 +215,7 @@ func buildPriceChart(rIn, rOut *big.Int, decIn, decOut int32, stepSize decimal.D
 		charts.WithTooltipOpts(opts.Tooltip{Trigger: "axis"}),
 		charts.WithGridOpts(opts.Grid{Top: "80px", Bottom: "80px"}),
 	)
-	line.SetXAxis(xData).AddSeries(fmt.Sprintf("%s out: %s/in: %s", lineName, symOut, symIn), yData)
+	line.SetXAxis(xData).AddSeries(lineName, yData)
 	return line
 }
 
@@ -183,4 +236,39 @@ func shortAddr(addr string) string {
 		return addr
 	}
 	return addr[:6] + "..." + addr[len(addr)-4:]
+}
+
+// buildV3YData 为 V3 swap 模拟生成 50 个平均成交价数据点（与 V2 图表 X 轴对齐）
+// 优化策略：先计算最大兑换量预热缓存，再从大到小回溯计算，复用已缓存的 tick 数据
+func buildV3YData(sim *v3SwapSim, zeroForOne bool, stepSize decimal.Decimal, decIn, decOut int32) []opts.LineData {
+	const totalSteps = 50
+	yData := make([]opts.LineData, totalSteps)
+
+	// 第一步：计算最大兑换量（第 50 步），预热 tick 缓存
+	maxAmountInHuman := stepSize.Mul(decimal.NewFromInt(totalSteps))
+	maxAmountInRaw := maxAmountInHuman.Mul(decimal.New(1, decIn)).BigInt()
+	maxAmountOutRaw := sim.simulate(zeroForOne, maxAmountInRaw)
+	maxAmountOutHuman := decimal.NewFromBigInt(maxAmountOutRaw, -decOut)
+
+	var maxAvgPrice float64
+	if maxAmountInHuman.IsPositive() {
+		maxAvgPrice, _ = maxAmountOutHuman.Div(maxAmountInHuman).Float64()
+	}
+	yData[totalSteps-1] = opts.LineData{Value: maxAvgPrice}
+
+	// 第二步：从大到小回溯计算其他点，复用缓存
+	for i := int64(totalSteps - 1); i >= 1; i-- {
+		amountInHuman := stepSize.Mul(decimal.NewFromInt(i))
+		amountInRaw := amountInHuman.Mul(decimal.New(1, decIn)).BigInt()
+
+		amountOutRaw := sim.simulate(zeroForOne, amountInRaw)
+		amountOutHuman := decimal.NewFromBigInt(amountOutRaw, -decOut)
+
+		var avgPrice float64
+		if amountInHuman.IsPositive() {
+			avgPrice, _ = amountOutHuman.Div(amountInHuman).Float64()
+		}
+		yData[i-1] = opts.LineData{Value: avgPrice}
+	}
+	return yData
 }
