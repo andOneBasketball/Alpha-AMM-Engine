@@ -10,6 +10,7 @@ import (
 
 	"alpha-amm-engine/internal/contracts"
 	"alpha-amm-engine/internal/dao"
+	"alpha-amm-engine/internal/global"
 	"alpha-amm-engine/pkg/config"
 	"alpha-amm-engine/pkg/logger"
 	"alpha-amm-engine/pkg/models"
@@ -135,8 +136,7 @@ uniswap v2 pool: %s reserve: %s, %s reserve: %s, liquidity: %s`,
 	if v3State != nil {
 		// price(token1/token0) = (sqrtPriceX96 / 2^96)^2
 		sqrtPriceD := decimal.NewFromBigInt(v3State.sqrtPriceX96, 0)
-		q96D := decimal.NewFromBigInt(q96, 0)
-		v3Price0 := sqrtPriceD.Div(q96D).Pow(decimal.NewFromInt(2))
+		v3Price0 := sqrtPriceD.Div(global.Q96D).Pow(decimal.NewFromInt(2))
 		v3Price1 := decimal.NewFromInt(1).Div(v3Price0)
 		headerHTML += fmt.Sprintf(`
 <br>

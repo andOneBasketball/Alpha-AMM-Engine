@@ -18,23 +18,29 @@ import (
 var (
 	Q                       = new(Query)
 	AlphaAmmPool            *alphaAmmPool
+	AlphaAmmV3PoolTick      *alphaAmmV3PoolTick
 	AlphaPoolLiquidityEvent *alphaPoolLiquidityEvent
 	AlphaToken              *alphaToken
+	ConfigPair              *configPair
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
 	AlphaAmmPool = &Q.AlphaAmmPool
+	AlphaAmmV3PoolTick = &Q.AlphaAmmV3PoolTick
 	AlphaPoolLiquidityEvent = &Q.AlphaPoolLiquidityEvent
 	AlphaToken = &Q.AlphaToken
+	ConfigPair = &Q.ConfigPair
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
 		db:                      db,
 		AlphaAmmPool:            newAlphaAmmPool(db, opts...),
+		AlphaAmmV3PoolTick:      newAlphaAmmV3PoolTick(db, opts...),
 		AlphaPoolLiquidityEvent: newAlphaPoolLiquidityEvent(db, opts...),
 		AlphaToken:              newAlphaToken(db, opts...),
+		ConfigPair:              newConfigPair(db, opts...),
 	}
 }
 
@@ -42,8 +48,10 @@ type Query struct {
 	db *gorm.DB
 
 	AlphaAmmPool            alphaAmmPool
+	AlphaAmmV3PoolTick      alphaAmmV3PoolTick
 	AlphaPoolLiquidityEvent alphaPoolLiquidityEvent
 	AlphaToken              alphaToken
+	ConfigPair              configPair
 }
 
 func (q *Query) Available() bool { return q.db != nil }
@@ -52,8 +60,10 @@ func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
 		db:                      db,
 		AlphaAmmPool:            q.AlphaAmmPool.clone(db),
+		AlphaAmmV3PoolTick:      q.AlphaAmmV3PoolTick.clone(db),
 		AlphaPoolLiquidityEvent: q.AlphaPoolLiquidityEvent.clone(db),
 		AlphaToken:              q.AlphaToken.clone(db),
+		ConfigPair:              q.ConfigPair.clone(db),
 	}
 }
 
@@ -69,22 +79,28 @@ func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
 		db:                      db,
 		AlphaAmmPool:            q.AlphaAmmPool.replaceDB(db),
+		AlphaAmmV3PoolTick:      q.AlphaAmmV3PoolTick.replaceDB(db),
 		AlphaPoolLiquidityEvent: q.AlphaPoolLiquidityEvent.replaceDB(db),
 		AlphaToken:              q.AlphaToken.replaceDB(db),
+		ConfigPair:              q.ConfigPair.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
 	AlphaAmmPool            IAlphaAmmPoolDo
+	AlphaAmmV3PoolTick      IAlphaAmmV3PoolTickDo
 	AlphaPoolLiquidityEvent IAlphaPoolLiquidityEventDo
 	AlphaToken              IAlphaTokenDo
+	ConfigPair              IConfigPairDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
 		AlphaAmmPool:            q.AlphaAmmPool.WithContext(ctx),
+		AlphaAmmV3PoolTick:      q.AlphaAmmV3PoolTick.WithContext(ctx),
 		AlphaPoolLiquidityEvent: q.AlphaPoolLiquidityEvent.WithContext(ctx),
 		AlphaToken:              q.AlphaToken.WithContext(ctx),
+		ConfigPair:              q.ConfigPair.WithContext(ctx),
 	}
 }
 

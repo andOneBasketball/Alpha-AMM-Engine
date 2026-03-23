@@ -5,15 +5,13 @@ import (
 	"math/big"
 
 	"alpha-amm-engine/internal/contracts"
+	"alpha-amm-engine/internal/global"
 	"alpha-amm-engine/pkg/logger"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
-
-var q96 = new(big.Int).Lsh(big.NewInt(1), 96)
-var q96D = decimal.NewFromBigInt(new(big.Int).Lsh(big.NewInt(1), 96), 0)
 
 const maxTickVal = int32(887272)
 
@@ -42,7 +40,7 @@ var base1_0001, _ = decimal.NewFromString("1.0001")
 func tickToSqrtPriceX96(tick int32) *big.Int {
 	exp := decimal.NewFromInt(int64(tick)).Div(decimal.NewFromInt(2))
 	sqrtP := base1_0001.Pow(exp)
-	return sqrtP.Mul(q96D).BigInt()
+	return sqrtP.Mul(global.Q96D).BigInt()
 }
 
 // amount0Delta 计算价格从 sqrtA 移动到 sqrtB 时的 |Δtoken0|
@@ -52,7 +50,7 @@ func amount0Delta(sqrtA, sqrtB, liquidity *big.Int) *big.Int {
 		sqrtA, sqrtB = sqrtB, sqrtA
 	}
 	diff := new(big.Int).Sub(sqrtB, sqrtA)
-	num := new(big.Int).Mul(new(big.Int).Mul(liquidity, diff), q96)
+	num := new(big.Int).Mul(new(big.Int).Mul(liquidity, diff), global.Q96)
 	denom := new(big.Int).Mul(sqrtA, sqrtB)
 	if denom.Sign() == 0 {
 		return big.NewInt(0)
@@ -67,13 +65,13 @@ func amount1Delta(sqrtA, sqrtB, liquidity *big.Int) *big.Int {
 		sqrtA, sqrtB = sqrtB, sqrtA
 	}
 	diff := new(big.Int).Sub(sqrtB, sqrtA)
-	return new(big.Int).Div(new(big.Int).Mul(liquidity, diff), q96)
+	return new(big.Int).Div(new(big.Int).Mul(liquidity, diff), global.Q96)
 }
 
 // newSqrtPriceAfterAmount0In 计算注入 amount0 token0 后的新 sqrtPrice（价格下跌）
 // 公式：newSqrt = liquidity * Q96 * sqrtPrice / (liquidity * Q96 + amount0 * sqrtPrice)
 func newSqrtPriceAfterAmount0In(sqrtPrice, liquidity, amount0 *big.Int) *big.Int {
-	liq96 := new(big.Int).Mul(liquidity, q96)
+	liq96 := new(big.Int).Mul(liquidity, global.Q96)
 	num := new(big.Int).Mul(liq96, sqrtPrice)
 	denom := new(big.Int).Add(liq96, new(big.Int).Mul(amount0, sqrtPrice))
 	if denom.Sign() == 0 {
@@ -85,7 +83,7 @@ func newSqrtPriceAfterAmount0In(sqrtPrice, liquidity, amount0 *big.Int) *big.Int
 // newSqrtPriceAfterAmount1In 计算注入 amount1 token1 后的新 sqrtPrice（价格上涨）
 // 公式：newSqrt = sqrtPrice + amount1 * Q96 / liquidity
 func newSqrtPriceAfterAmount1In(sqrtPrice, liquidity, amount1 *big.Int) *big.Int {
-	delta := new(big.Int).Div(new(big.Int).Mul(amount1, q96), liquidity)
+	delta := new(big.Int).Div(new(big.Int).Mul(amount1, global.Q96), liquidity)
 	return new(big.Int).Add(sqrtPrice, delta)
 }
 
@@ -126,8 +124,7 @@ func loadV3PoolState(ctx context.Context, caller *contracts.IUniswapV3PoolCaller
 	}
 
 	sqrtPriceD := decimal.NewFromBigInt(v3State.sqrtPriceX96, 0)
-	q96D := decimal.NewFromBigInt(q96, 0)
-	v3Price := sqrtPriceD.Div(q96D).Pow(decimal.NewFromInt(2))
+	v3Price := sqrtPriceD.Div(global.Q96D).Pow(decimal.NewFromInt(2))
 
 	logger.Log.Info("Loaded V3 pool state",
 		zap.String("v3Price1", v3Price.String()),
@@ -343,7 +340,7 @@ func (sim *v3SwapSim) simulate(zeroForOne bool, amountInRaw *big.Int) *big.Int {
 			liquidity.SetInt64(0)
 		}
 
-		price0 := decimal.NewFromBigInt(sqrtPrice, 0).Div(q96D).Pow(decimal.NewFromInt(2))
+		price0 := decimal.NewFromBigInt(sqrtPrice, 0).Div(global.Q96D).Pow(decimal.NewFromInt(2))
 		price1 := decimal.NewFromInt32(1).Div(price0)
 		logger.Log.Info("cross tick", zap.Int32("tick", nextTick), zap.String("sqrtPriceX96", sqrtPrice.String()), zap.String("price0", price0.String()), zap.String("price1", price1.String()), zap.String("liquidity", liquidity.String()), zap.String("amountRemaining", amountRemaining.String()), zap.String("totalOut", totalOut.String()), zap.Bool("zeroForOne", zeroForOne))
 		// 更新 currentTick，供下次 nextInitializedTick 查询定位

@@ -14,6 +14,9 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+// DB 全局数据库实例，供非 gen-DAO 层直接使用
+var DB *gorm.DB
+
 func InitDatabase(cfg *models.MySQLConfig, debug bool) (db *gorm.DB, err error) {
 	if cfg.Uri == "" {
 		err = errors.New("mysql uri is empty")
@@ -51,6 +54,8 @@ func InitDatabase(cfg *models.MySQLConfig, debug bool) (db *gorm.DB, err error) 
 	} else {
 		dao.SetDefault(db)
 	}
+
+	DB = db
 
 	return
 }

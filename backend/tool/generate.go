@@ -15,6 +15,8 @@ var tables = []string{
 	"alpha_amm_pool",
 	"alpha_pool_liquidity_event",
 	"alpha_token",
+	"config_pair",
+	"alpha_amm_v3_pool_tick",
 }
 
 const MySQLDSN = "root:a1b3c3d4@tcp(172.20.57.191:3306)/alpha_amm_engine?parseTime=true&loc=Local&charset=utf8mb4&collation=utf8mb4_unicode_ci"

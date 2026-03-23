@@ -1,6 +1,6 @@
 module alpha-amm-engine
 
-go 1.25.0
+go 1.25.1
 
 require (
 	github.com/andOneBasketball/baseapi-go v0.0.3
@@ -20,7 +20,9 @@ require (
 	github.com/duke-git/lancet/v2 v2.3.8
 	github.com/ethereum/go-ethereum v1.17.1
 	github.com/go-echarts/go-echarts/v2 v2.7.0
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/shopspring/decimal v1.4.0
+	golang.org/x/time v0.14.0
 )
 
 require (

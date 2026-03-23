@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"alpha-amm-engine/pkg/config"
+	"alpha-amm-engine/pkg/logger"
 	"alpha-amm-engine/svc/router"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 // webCmd represents the web command
@@ -18,6 +20,8 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		logger.Log.Info("Starting web server with config", zap.Any("webConfig", config.Cfg.Web), zap.Bool("debug", config.Cfg.Debug))
+
 		// 使用从 main 传递下来的根 context
 		router.RunWithContext(rootCtx, config.Cfg.Web.Addr, config.Cfg.Debug)
 	},
